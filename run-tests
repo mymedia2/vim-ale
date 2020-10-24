@@ -9,11 +9,8 @@ set -u
 # options, or read the output below.
 #
 
-image=w0rp/ale
-current_image_id=f58c7bf8900f
-
 # Used in all test scripts for running the selected Docker image.
-DOCKER_RUN_IMAGE="$image"
+DOCKER_RUN_IMAGE="t_img_${RANDOM}"
 export DOCKER_RUN_IMAGE
 
 tests='test/*.vader test/*/*.vader test/*/*/*.vader test/*/*/*.vader'
@@ -24,6 +21,7 @@ run_neovim_02_tests=1
 run_neovim_03_tests=1
 run_vim_80_tests=1
 run_vim_81_tests=1
+run_vim_82_tests=1
 run_linters=1
 
 while [ $# -ne 0 ]; do
@@ -39,6 +37,7 @@ while [ $# -ne 0 ]; do
     --neovim-only)
         run_vim_80_tests=0
         run_vim_81_tests=0
+        run_vim_82_tests=0
         run_linters=0
         shift
     ;;
@@ -46,6 +45,7 @@ while [ $# -ne 0 ]; do
         run_neovim_03_tests=0
         run_vim_80_tests=0
         run_vim_81_tests=0
+        run_vim_82_tests=0
         run_linters=0
         shift
     ;;
@@ -53,6 +53,7 @@ while [ $# -ne 0 ]; do
         run_neovim_02_tests=0
         run_vim_80_tests=0
         run_vim_81_tests=0
+        run_vim_82_tests=0
         run_linters=0
         shift
     ;;
@@ -66,6 +67,7 @@ while [ $# -ne 0 ]; do
         run_neovim_02_tests=0
         run_neovim_03_tests=0
         run_vim_81_tests=0
+        run_vim_82_tests=0
         run_linters=0
         shift
     ;;
@@ -73,12 +75,22 @@ while [ $# -ne 0 ]; do
         run_neovim_02_tests=0
         run_neovim_03_tests=0
         run_vim_80_tests=0
+        run_vim_82_tests=0
+        run_linters=0
+        shift
+    ;;
+    --vim-82-only)
+        run_neovim_02_tests=0
+        run_neovim_03_tests=0
+        run_vim_80_tests=0
+        run_vim_81_tests=0
         run_linters=0
         shift
     ;;
     --linters-only)
         run_vim_80_tests=0
         run_vim_81_tests=0
+        run_vim_82_tests=0
         run_neovim_02_tests=0
         run_neovim_03_tests=0
         shift
@@ -138,8 +150,8 @@ fi
 # Delete .swp files in the test directory, which cause Vim 8 to hang.
 find test -name '*.swp' -delete
 
-docker images -q w0rp/ale | grep "^$current_image_id" > /dev/null \
-    || docker pull "$image"
+empty_dir=$(mktemp -d)
+docker build -t "$DOCKER_RUN_IMAGE" -f Dockerfile "$empty_dir"
 
 output_dir=$(mktemp -d 2>/dev/null || mktemp -d -t 'mytmpdir')
 
@@ -160,7 +172,7 @@ cancel_tests() {
     fi
 
     # shellcheck disable=SC2046
-    docker kill $(docker ps -a -q --filter ancestor="$image" --format='{{.ID}}') &> /dev/null
+    docker kill $(docker ps -a -q --filter ancestor="$DOCKER_RUN_IMAGE" --format='{{.ID}}') &> /dev/null
 
     if [ -d "$output_dir" ]; then
         rm -rf "$output_dir"
@@ -175,6 +187,7 @@ trap cancel_tests INT TERM
 for vim in $(docker run --rm "$DOCKER_RUN_IMAGE" ls /vim-build/bin | grep '^neovim\|^vim' ); do
     if ( [[ $vim =~ ^vim-v8.0 ]] && ((run_vim_80_tests)) ) \
     || ( [[ $vim =~ ^vim-v8.1 ]] && ((run_vim_81_tests)) ) \
+    || ( [[ $vim =~ ^vim-v8.2 ]] && ((run_vim_82_tests)) ) \
     || ( [[ $vim =~ ^neovim-v0.2 ]] && ((run_neovim_02_tests)) ) \
     || ( [[ $vim =~ ^neovim-v0.3 ]] && ((run_neovim_03_tests)) ); then
         echo "Starting Vim: $vim..."
